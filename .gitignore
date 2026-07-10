@@ -1,14 +1,8 @@
-# >>> project-bootstrap managed >>>
-.cc-status-bar.voice.json
-# <<< project-bootstrap managed <<<
-
 # codex-project private project memory
 .local/
 
 # Local Codex/bootstrap state
 .codex/
-AGENTS.md
-CLAUDE.md
 
 # OS/editor noise
 .DS_Store
@@ -25,3 +19,10 @@ yarn-error.log*
 coverage/
 dist/
 build/
+
+# >>> project-bootstrap local-only >>>
+CLAUDE.local.md
+.codex/config.toml
+.local/
+.cc-status-bar.voice.json
+# <<< project-bootstrap local-only <<<
