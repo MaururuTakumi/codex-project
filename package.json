@@ -8,9 +8,19 @@
     "codex-project": "./bin/codex-project.mjs",
     "init-codex-project": "./bin/codex-project.mjs"
   },
+  "files": [
+    ".agents/skills/codex-project/SKILL.md",
+    "bin/codex-project.mjs",
+    "LICENSE",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usedhonda/codex-project.git"
+    "url": "git+https://github.com/MaururuTakumi/codex-project.git"
+  },
+  "homepage": "https://github.com/MaururuTakumi/codex-project#readme",
+  "bugs": {
+    "url": "https://github.com/MaururuTakumi/codex-project/issues"
   },
   "engines": {
     "node": ">=20"
@@ -18,6 +28,6 @@
   "scripts": {
     "check": "node --check bin/codex-project.mjs && node --check scripts/smoke-test.mjs",
     "test": "node scripts/smoke-test.mjs",
-    "install-skill": "mkdir -p ~/.agents/skills && ln -sfn \"$PWD/.agents/skills/codex-project\" ~/.agents/skills/codex-project && rm -f ~/.agents/skills/init-codex-project"
+    "install-skill": "node bin/codex-project.mjs install-skill"
   }
 }

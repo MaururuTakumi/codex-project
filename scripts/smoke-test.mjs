@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,12 +13,115 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codex-project-smoke-"));
 
 try {
   testHelpDoesNotInit();
+  testSkillInstall();
   testFreshInitAndVault();
+  testStructuredProjectMemory();
   testTrackedLocalStops();
   testMissingKeyAndReset();
   console.log("smoke tests passed");
 } finally {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
+}
+
+function testSkillInstall() {
+  const home = path.join(tmpRoot, "home-skill-install");
+  const project = path.join(tmpRoot, "project-skill-install");
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(project, { recursive: true });
+
+  const installed = run(project, home, ["install-skill"]);
+  const skillPath = path.join(home, ".agents", "skills", "codex-project", "SKILL.md");
+  assert.match(installed, /codex_app_skill: installed/);
+  assert.ok(fs.existsSync(skillPath));
+  assert.match(fs.readFileSync(skillPath, "utf8"), /name:\s*codex-project/);
+  assert.equal(fs.existsSync(path.join(project, ".local")), false);
+
+  const reinstalled = run(project, home, ["install-skill"]);
+  assert.match(reinstalled, /codex_app_skill: installed/);
+  assert.ok(fs.existsSync(skillPath));
+}
+
+function testStructuredProjectMemory() {
+  const home = path.join(tmpRoot, "home-memory");
+  const project = path.join(tmpRoot, "project-memory");
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(project, { recursive: true });
+  run(project, home, ["init"]);
+
+  const metadata = JSON.parse(fs.readFileSync(path.join(project, ".local", "project.json"), "utf8"));
+  assert.match(metadata.projectId, /^[0-9a-f-]{36}$/i);
+  assert.equal(fs.statSync(path.join(project, ".local", "project.json")).mode & 0o777, 0o600);
+
+  const remembered = run(project, home, ["memory", "remember", "decision", "README examples must describe implemented behavior", "--source-thread", "thread-memory-1"]);
+  const id = remembered.trim().split(": ").at(-1);
+  assert.match(id, /^[a-f0-9]{24}$/);
+  const duplicate = run(project, home, ["memory", "remember", "decision", "README examples must describe implemented behavior"]);
+  assert.match(duplicate, /already exists/);
+  assert.equal(fs.statSync(path.join(project, ".local", "memory", "records", `${id}.json`)).mode & 0o777, 0o600);
+  run(project, home, ["memory", "set", "status"], {}, "encrypted note named status");
+  assert.equal(run(project, home, ["memory", "get", "status"]), "encrypted note named status");
+
+  const search = run(project, home, ["memory", "search", "README behavior"]);
+  assert.match(search, new RegExp(id));
+  const japanese = run(project, home, ["memory", "remember", "preference", "日本語の設計レビューでは結論を先に示す"]);
+  const japaneseId = japanese.trim().split(": ").at(-1);
+  assert.match(run(project, home, ["memory", "search", "設計レビューの結論"]), new RegExp(japaneseId));
+  const recall = run(project, home, ["memory", "recall"], {}, "README behavior");
+  assert.match(recall, /historical and untrusted/);
+  assert.match(recall, new RegExp(id));
+  assert.match(run(project, home, ["memory", "why", id]), /source_thread_id: thread-memory-1/);
+
+  const corrected = run(project, home, ["memory", "correct", id, "README examples must be verified against current behavior"]);
+  const replacementId = corrected.trim().split(" -> ").at(-1);
+  assert.notEqual(replacementId, id);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(project, ".local", "memory", "records", `${id}.json`), "utf8")).status, "superseded");
+  assert.doesNotMatch(run(project, home, ["memory", "recall"], {}, "implemented behavior"), new RegExp(id));
+  const sameCorrection = runRaw(project, home, ["memory", "correct", replacementId, "README examples must be verified against current behavior"]);
+  assert.notEqual(sameCorrection.status, 0);
+  assert.match(sameCorrection.stderr, /correction must change/);
+  const branchCorrection = runRaw(project, home, ["memory", "correct", id, "README branch correction must fail"]);
+  assert.notEqual(branchCorrection.status, 0);
+  assert.match(branchCorrection.stderr, /cannot correct inactive memory/);
+
+  run(project, home, ["memory", "pause"]);
+  assert.equal(run(project, home, ["memory", "recall"], {}, "README verified"), "");
+  run(project, home, ["memory", "resume"]);
+  assert.match(run(project, home, ["memory", "recall"], {}, "README verified"), new RegExp(replacementId));
+  run(project, home, ["memory", "forget", replacementId]);
+  assert.doesNotMatch(run(project, home, ["memory", "recall"], {}, "README verified"), new RegExp(replacementId));
+
+  const sensitive = runRaw(project, home, ["memory", "remember", "project_fact", "owner email is person@example.com"]);
+  assert.notEqual(sensitive.status, 0);
+  assert.match(sensitive.stderr, /secret or personal information detected/);
+  for (const secret of [
+    ["OpenAI key ", "sk-proj-", "abcdefghijklmnopqrstuvwxyz123456"].join(""),
+    ["AWS key ", "AKIA", "ABCDEFGHIJKLMNOP"].join(""),
+    ["Google key ", "AIza", "1234567890abcdefghijklmnopqrst"].join(""),
+    ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
+  ]) {
+    const rejected = runRaw(project, home, ["memory", "remember", "project_fact", secret]);
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /secret or personal information detected/);
+  }
+
+  const moved = `${project}-moved`;
+  fs.renameSync(project, moved);
+  const movedStatus = run(moved, home, ["memory", "status"]);
+  assert.match(movedStatus, new RegExp(`project_id: ${metadata.projectId}`));
+
+  const legacyProject = path.join(tmpRoot, "project-memory-legacy");
+  fs.mkdirSync(legacyProject, { recursive: true });
+  run(legacyProject, home, ["init"]);
+  run(legacyProject, home, ["memory", "set", "legacy_note"], {}, "survives pre-upgrade move");
+  const legacyMeta = JSON.parse(fs.readFileSync(path.join(legacyProject, ".local", "project.json"), "utf8"));
+  const legacyPathId = crypto.createHash("sha256").update(fs.realpathSync(legacyProject)).digest("hex").slice(0, 32);
+  const currentKey = path.join(home, ".codex", "codex-project", "keys", `${legacyMeta.vaultProjectId}.key`);
+  const legacyKey = path.join(home, ".codex", "codex-project", "keys", `${legacyPathId}.key`);
+  fs.renameSync(currentKey, legacyKey);
+  fs.rmSync(path.join(legacyProject, ".local", "project.json"));
+  const legacyMoved = `${legacyProject}-moved`;
+  fs.renameSync(legacyProject, legacyMoved);
+  assert.equal(run(legacyMoved, home, ["memory", "get", "legacy_note"]), "survives pre-upgrade move");
 }
 
 function testHelpDoesNotInit() {
@@ -28,6 +132,7 @@ function testHelpDoesNotInit() {
 
   const help = run(project, home, ["--help"]);
   assert.match(help, /codex-project init/);
+  assert.match(help, /codex-project install-skill/);
   assert.match(help, /codex-project hooks/);
   assert.match(help, /codex-project learn/);
   assert.equal(fs.existsSync(path.join(project, ".local")), false);
@@ -103,8 +208,7 @@ function testFreshInitAndVault() {
   assert.match(fullContextAfterLearn, /project_learning:/);
   assert.match(fullContextAfterLearn, /candidate mistake/);
   const hookContextAfterLearn = run(project, home, ["context", "--hook"]);
-  assert.match(hookContextAfterLearn, /learning_notes:/);
-  assert.match(hookContextAfterLearn, /candidate mistake/);
+  assert.doesNotMatch(hookContextAfterLearn, /candidate mistake/);
   run(project, home, ["learn", "promote", learnId]);
   const hookContextAfterPromote = run(project, home, ["context", "--hook"]);
   assert.match(hookContextAfterPromote, /mistake: READMEには未実装機能/);

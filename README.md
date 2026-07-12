@@ -10,14 +10,35 @@ Codex App では、1つのプロジェクトフォルダから複数のチャッ
 
 ## インストール
 
+必要なのは Node.js 20 以上です。GitHub のURLからCLIとCodex App用スキルを入れられます。
+
 ```sh
-git clone https://github.com/usedhonda/codex-project.git
-cd codex-project
-npm link
-npm run install-skill
+npm install --global https://github.com/MaururuTakumi/codex-project.git \
+  && codex-project install-skill
 ```
 
-`npm link` で `codex-project` コマンドを使えるようにします。`npm run install-skill` で Codex App のスラッシュ一覧から `Codex Project` を選べるようにします。
+`npm install --global` で `codex-project` コマンドを使えるようにします。`codex-project install-skill` で Codex App の `/` 一覧から `Codex Project` を選べるようにします。同じコマンドを再実行すれば更新できます。
+
+開発用にcloneする場合:
+
+```sh
+git clone https://github.com/MaururuTakumi/codex-project.git
+cd codex-project
+npm link
+codex-project install-skill
+```
+
+## 他のProjectで有効にする
+
+各Projectにつき最初の1回だけ、Codex Appの入力欄で `/` から `Codex Project` を選びます。
+
+ターミナルなら、そのProject内で以下を実行します。
+
+```sh
+codex-project init
+```
+
+旧版を導入済みのProjectでも、更新後にもう一度 `codex-project init` を実行してください。既存の `.local/` を維持したまま、Project UUID、共有メモリ、AGENTS.mdの管理ブロック、project-local hooksを更新します。
 
 ## ユーザーが使うもの
 
@@ -47,11 +68,13 @@ $codex-project Next.js の SaaS。認証は Clerk。
 ## 追加されるもの
 
 - `.local/project.md`: プロジェクトの目的や初期情報
+- `.local/project.json`: pathを移動しても変わらないProject UUID
 - `.local/state.md`: 現在の状態
 - `.local/decisions.md`: 決定事項
 - `.local/index.md`: チャット一覧
 - `.local/chats/<chat-id>/`: チャットごとの作業ログ
 - `.local/learn/`: ユーザー指示、ミス、好み、再利用できる注意点の候補
+- `.local/memory/records/`: 出典と状態を持つ、検索可能な構造化Project memory
 - `.local/vault/secrets.json.enc`: 暗号化された保存領域
 - `.codex/config.toml`: project-local hooks を有効にする設定
 - `.codex/hooks.json`: このプロジェクト専用の hook 設定
@@ -78,6 +101,8 @@ codex-project hooks status
 
 `context --hook` は、各ターン前に hooks から呼ばれる短い表示用です。あわせて `learn capture --hook` が走り、チャットログや共有ファイルから「次にも効きそうな注意」を候補化します。
 
+hookは現在の入力もローカル検索へ渡し、関連する構造化Project memoryだけを最大5件表示します。これは過去の参考情報として明示され、現在のユーザー指示や確認済みのローカル状態を上書きしません。通常はユーザーが毎回コマンドを実行する必要はありません。
+
 `memory get` と `secret get` は本文や値を出力します。Codex は必要な処理だけに使い、チャット本文には表示しません。
 
 ## プロジェクト内学習メモ
@@ -87,6 +112,29 @@ Codex が同じプロジェクト内で同じミスを繰り返さないよう�
 これはユーザーが管理するものではなく、Codex が内部的に使う軽い記憶です。たとえば「README に未実装機能を既存機能のように書かない」「コピー用本文はクリップボードへ入れる」のような、他チャットにも効く学びを次の context に出します。
 
 保存先は `.local/` 配下なので、このプロジェクトの外には広がりません。秘密値や個人情報の生データは学習メモにせず、必要なら暗号化メモか秘密値として扱います。
+
+## 検索可能なProject memory
+
+Codexは、ユーザーが明示した長く使える決定・Project fact・好み・教訓・一時的な作業状態だけを構造化して保存できます。正本は権限`0600`のJSONで、SQLite FTS5 indexはいつでも再構築できる派生データです。SQLiteが利用できなくても線形検索へfail-openします。Vector、Persona、Sceneの自動生成は行いません。
+
+通常はCodexが必要に応じて操作します。確認や手動操作をしたい場合は次を使えます。
+
+```sh
+codex-project memory status
+codex-project memory remember decision "採用した設計と理由"
+codex-project memory search "検索語"
+codex-project memory show <id>
+codex-project memory why <id>
+codex-project memory correct <id> "訂正後の内容"
+codex-project memory forget <id>
+codex-project memory pause
+codex-project memory resume
+codex-project memory rebuild
+```
+
+`correct`は旧recordを削除せず`superseded`にし、`forget`は`forgotten`にします。activeかつ期限内のrecordだけが検索・自動recall対象です。秘密、メールアドレス、電話番号などを検出した場合は保存を拒否するため、必要な非公開情報は従来の暗号化`memory set`または`secret set`を使います。
+
+`memory set|get|list|delete|import`は従来どおり暗号化メモ用です。構造化Project memoryは先頭のactionで判別するため、既存の暗号化メモ名との互換性も維持されます。
 
 ## 暗号化メモと秘密値
 

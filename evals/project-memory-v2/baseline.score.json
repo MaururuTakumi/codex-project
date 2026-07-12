@@ -1,0 +1,155 @@
+{
+  "summary": {
+    "score": 4,
+    "max_score": 19,
+    "rate": 0.21052631578947367,
+    "cases": 5,
+    "passed_cases": 0,
+    "by_split": {
+      "train": {
+        "score": 2,
+        "max_score": 11,
+        "cases": 3,
+        "passed_cases": 0,
+        "rate": 0.18181818181818182,
+        "case_pass_rate": 0.0
+      },
+      "validation": {
+        "score": 2,
+        "max_score": 8,
+        "cases": 2,
+        "passed_cases": 0,
+        "rate": 0.25,
+        "case_pass_rate": 0.0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "stable-project-id",
+      "split": "train",
+      "score": 0,
+      "max_score": 4,
+      "passed": false,
+      "checks": [
+        {
+          "name": "required_term:persistent UUID",
+          "passed": false
+        },
+        {
+          "name": "required_term:vault compatible",
+          "passed": false
+        },
+        {
+          "name": "required_term:path alias",
+          "passed": false
+        },
+        {
+          "name": "forbidden_term:realpath hash only",
+          "passed": false
+        }
+      ],
+      "output_path": "evals/project-memory-v2/runs/baseline/stable-project-id.md"
+    },
+    {
+      "id": "automatic-recall",
+      "split": "train",
+      "score": 1,
+      "max_score": 4,
+      "passed": false,
+      "checks": [
+        {
+          "name": "required_term:automatic hook recall",
+          "passed": false
+        },
+        {
+          "name": "required_term:source",
+          "passed": false
+        },
+        {
+          "name": "required_term:bounded",
+          "passed": false
+        },
+        {
+          "name": "forbidden_term:all history injected",
+          "passed": true
+        }
+      ],
+      "output_path": "evals/project-memory-v2/runs/baseline/automatic-recall.md"
+    },
+    {
+      "id": "secret-rejection",
+      "split": "train",
+      "score": 1,
+      "max_score": 3,
+      "passed": false,
+      "checks": [
+        {
+          "name": "required_term:rejected",
+          "passed": false
+        },
+        {
+          "name": "required_term:encrypted memory",
+          "passed": false
+        },
+        {
+          "name": "forbidden_term:plaintext index",
+          "passed": true
+        }
+      ],
+      "output_path": "evals/project-memory-v2/runs/baseline/secret-rejection.md"
+    },
+    {
+      "id": "correct-forget",
+      "split": "validation",
+      "score": 1,
+      "max_score": 4,
+      "passed": false,
+      "checks": [
+        {
+          "name": "required_term:superseded",
+          "passed": false
+        },
+        {
+          "name": "required_term:not recalled",
+          "passed": false
+        },
+        {
+          "name": "required_term:derived index updated",
+          "passed": false
+        },
+        {
+          "name": "forbidden_term:old memory active",
+          "passed": true
+        }
+      ],
+      "output_path": "evals/project-memory-v2/runs/baseline/correct-forget.md"
+    },
+    {
+      "id": "hook-fail-open",
+      "split": "validation",
+      "score": 1,
+      "max_score": 4,
+      "passed": false,
+      "checks": [
+        {
+          "name": "required_term:timeout",
+          "passed": false
+        },
+        {
+          "name": "required_term:fail-open",
+          "passed": false
+        },
+        {
+          "name": "required_term:Codex continues",
+          "passed": false
+        },
+        {
+          "name": "forbidden_term:blocks the chat",
+          "passed": true
+        }
+      ],
+      "output_path": "evals/project-memory-v2/runs/baseline/hook-fail-open.md"
+    }
+  ]
+}

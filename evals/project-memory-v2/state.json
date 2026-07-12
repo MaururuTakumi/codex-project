@@ -1,0 +1,6 @@
+{
+  "target": "codex-project-memory-v2",
+  "template": "generic",
+  "created_at": "20260712-145309",
+  "acceptance_rule": "Accept only if candidate validation score is strictly higher than baseline."
+}
